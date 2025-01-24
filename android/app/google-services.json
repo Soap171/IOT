@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "658616296170",
+    "firebase_url": "https://iot-project-a5263-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "iot-project-a5263",
+    "storage_bucket": "iot-project-a5263.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:658616296170:android:ba9e248eb0681129f2ad93",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDGieYFvB_cA-sWmKLYoqEFUnRt6BRrFjM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
