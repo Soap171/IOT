@@ -10,7 +10,7 @@ class UsageDetailsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Usage Details',
+          'Usage Details (Last 30 Days)',
           style: GoogleFonts.poppins(),
         ),
         backgroundColor: const Color.fromARGB(255, 3, 48, 86),
@@ -25,8 +25,10 @@ class UsageDetailsPage extends StatelessWidget {
               data: [
                 BarChartGroupData(x: 0, barRods: [
                   BarChartRodData(toY: 45, color: Colors.blue),
-                  BarChartRodData(toY: 38, color: Colors.green)
                 ]),
+                BarChartGroupData(
+                    x: 1,
+                    barRods: [BarChartRodData(toY: 38, color: Colors.green)]),
               ],
               devices: ['Fan 1', 'Fan 2'],
             ),
@@ -36,13 +38,13 @@ class UsageDetailsPage extends StatelessWidget {
               data: [
                 BarChartGroupData(x: 0, barRods: [
                   BarChartRodData(toY: 60, color: Colors.orange),
-                  BarChartRodData(toY: 52, color: Colors.purple)
                 ]),
+                BarChartGroupData(
+                    x: 1,
+                    barRods: [BarChartRodData(toY: 52, color: Colors.purple)]),
               ],
               devices: ['Bulb 1', 'Bulb 2'],
             ),
-            const SizedBox(height: 20),
-            _buildSummaryCard(),
           ],
         ),
       ),
@@ -90,58 +92,16 @@ class UsageDetailsPage extends StatelessWidget {
                       ),
                     ),
                   ),
+                  alignment: BarChartAlignment.spaceAround,
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard() {
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Device Usage Summary',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Total Fan Usage',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-                    ),
-                    Text('Hours Used: 83', style: GoogleFonts.poppins()),
-                    Text('Energy Consumed: 41.5 kWh',
-                        style: GoogleFonts.poppins()),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Total Bulb Usage',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-                    ),
-                    Text('Hours Used: 112', style: GoogleFonts.poppins()),
-                    Text('Energy Consumed: 16.8 kWh',
-                        style: GoogleFonts.poppins()),
-                  ],
-                ),
+                Text('Fan 1: 45 hrs', style: GoogleFonts.poppins()),
+                Text('Fan 2: 38 hrs', style: GoogleFonts.poppins()),
               ],
             ),
           ],
