@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'usage_details_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -10,7 +11,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   // Temperature value
-  double _temperature = 25.0;
+  final double _temperature = 25.0;
 
   // Device states
   bool _fan1State = false;
@@ -217,29 +218,6 @@ class _DashboardPageState extends State<DashboardPage> {
               activeColor: Colors.green,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class UsageDetailsPage extends StatelessWidget {
-  const UsageDetailsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Usage Details',
-          style: GoogleFonts.poppins(),
-        ),
-        backgroundColor: const Color.fromARGB(255, 3, 48, 86),
-      ),
-      body: Center(
-        child: Text(
-          'Usage details will be displayed here.',
-          style: GoogleFonts.poppins(fontSize: 16),
         ),
       ),
     );
