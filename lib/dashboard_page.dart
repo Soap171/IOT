@@ -19,6 +19,7 @@ class _DashboardPageState extends State<DashboardPage> {
   // User data
   String? _userName = "Loading...";
   String? _userEmail = "Loading...";
+  double? _temperature = null; // Holds the temperature value
   bool _isLoading = true;
 
   // Device states
@@ -27,7 +28,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _bulb1State = false;
   bool _bulb2State = false;
 
-  // Fetch user data after login
+  // Fetch user and temperature data
   Future<void> _fetchUserData() async {
     try {
       User? currentUser = _auth.currentUser;
@@ -36,7 +37,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _userEmail = currentUser.email;
         String uid = currentUser.uid;
 
-        // Loop through all users to find matching UID
+        // Fetch user data
         DataSnapshot snapshot = await _dbRef.child('users').get();
         if (snapshot.exists) {
           Map<dynamic, dynamic> users = snapshot.value as Map<dynamic, dynamic>;
@@ -50,9 +51,17 @@ class _DashboardPageState extends State<DashboardPage> {
             }
           }
         }
+
+        // Fetch temperature value
+        DataSnapshot tempSnapshot = await _dbRef.child('temperature').get();
+        if (tempSnapshot.exists) {
+          setState(() {
+            _temperature = double.parse(tempSnapshot.value.toString());
+          });
+        }
       }
     } catch (e) {
-      print('Error fetching user data: $e');
+      print('Error fetching data: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -100,7 +109,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _fetchUserData(); // Fetch user data when the dashboard is initialized
+    _fetchUserData(); // Fetch user and temperature data
   }
 
   @override
@@ -141,6 +150,37 @@ class _DashboardPageState extends State<DashboardPage> {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Temperature Display
+                  Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Current Temperature:",
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            _temperature != null
+                                ? "${_temperature!.toStringAsFixed(1)} °C"
+                                : "N/A",
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
