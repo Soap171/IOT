@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -12,30 +13,63 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  bool _isLoading = false;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  // Handle login logic
   void _login() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
-    // Simulate a login process
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Sign in with Firebase
+      await _auth.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
-    setState(() {
-      _isLoading = false;
-    });
+      // Navigate to DashboardPage upon successful login
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardPage()),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _errorMessage = _getErrorMessage(e.code);
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'An unexpected error occurred. Please try again.';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
-    // Navigate to the dashboard
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const DashboardPage()),
-    );
+  // Map Firebase error codes to user-friendly messages
+  String _getErrorMessage(String errorCode) {
+    switch (errorCode) {
+      case 'invalid-email':
+        return 'The email address is not valid.';
+      case 'user-disabled':
+        return 'This user has been disabled.';
+      case 'user-not-found':
+        return 'No user found for this email.';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again.';
+      default:
+        return 'An error occurred. Please try again.';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Define the style for the "Login" button text
     var buttonTextStyle = GoogleFonts.poppins(
       fontSize: 16,
       fontWeight: FontWeight.bold,
@@ -92,6 +126,16 @@ class _LoginPageState extends State<LoginPage> {
                   obscureText: true,
                 ),
                 const SizedBox(height: 20),
+
+                // Error Message
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10.0),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
 
                 // Login Button or Loading Indicator
                 _isLoading
