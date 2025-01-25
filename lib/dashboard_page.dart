@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'usage_details_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -10,8 +11,12 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  // Temperature value
-  final double _temperature = 25.0;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+
+  String? _userName;
+  String? _userEmail;
+  bool _isLoading = true;
 
   // Device states
   bool _fan1State = false;
@@ -19,59 +24,85 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _bulb1State = false;
   bool _bulb2State = false;
 
-  // Last updated names
-  String _fan1UpdatedBy = "No one";
-  String _fan2UpdatedBy = "No one";
-  String _bulb1UpdatedBy = "No one";
-  String _bulb2UpdatedBy = "No one";
-
   // Simulate toggling device states
-  void _toggleDevice(String deviceName, bool currentState, String updatedBy) {
+  void _toggleDevice(String deviceName, bool currentState) {
     setState(() {
       switch (deviceName) {
         case "Fan 1":
           _fan1State = !currentState;
-          _fan1UpdatedBy = updatedBy;
           break;
         case "Fan 2":
           _fan2State = !currentState;
-          _fan2UpdatedBy = updatedBy;
           break;
         case "Bulb 1":
           _bulb1State = !currentState;
-          _bulb1UpdatedBy = updatedBy;
           break;
         case "Bulb 2":
           _bulb2State = !currentState;
-          _bulb2UpdatedBy = updatedBy;
           break;
       }
     });
   }
 
-  // Log out function
-  void _logout() {
-    Navigator.pop(context); // Navigate back to the login page
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
   }
 
-  // Navigate to Usage Details page
-  void _navigateToUsageDetails() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const UsageDetailsPage(),
-      ),
-    );
+  Future<void> _fetchUserData() async {
+    try {
+      User? currentUser = _auth.currentUser;
+
+      if (currentUser != null) {
+        _userEmail = currentUser.email;
+        String uid = currentUser.uid;
+
+        // Loop through all users to find matching UID
+        DataSnapshot snapshot = await _dbRef.child('users').get();
+        if (snapshot.exists) {
+          Map<dynamic, dynamic> users = snapshot.value as Map<dynamic, dynamic>;
+          for (var userKey in users.keys) {
+            Map<dynamic, dynamic> userData = users[userKey];
+            if (userData['userId'] == uid) {
+              setState(() {
+                _userName = userData['name'];
+              });
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Log out function
+  void _logout() {
+    _auth.signOut();
+    Navigator.pop(context); // Navigate back to the login page
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('IoT Dashboard', style: GoogleFonts.poppins()),
+          backgroundColor: const Color.fromARGB(255, 3, 48, 86),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'IoT Dashboard',
-          style: GoogleFonts.poppins(),
-        ),
+        title: Text('IoT Dashboard', style: GoogleFonts.poppins()),
         backgroundColor: const Color.fromARGB(255, 3, 48, 86),
         actions: [
           IconButton(
@@ -86,46 +117,27 @@ class _DashboardPageState extends State<DashboardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Navigate to Usage Details Button
-            ElevatedButton.icon(
-              onPressed: _navigateToUsageDetails,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 3, 48, 86),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-              ),
-              icon: const Icon(Icons.bar_chart),
-              label: Text(
-                'View Usage Details',
-                style: GoogleFonts.poppins(
-                    fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Temperature Display
+            // Welcome Card
             Card(
               elevation: 4,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Temperature',
+                      'Welcome, $_userName',
                       style: GoogleFonts.poppins(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 8),
                     Text(
-                      '${_temperature.toStringAsFixed(1)}°C',
+                      'Email: $_userEmail',
                       style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.redAccent,
+                        fontSize: 16,
+                        color: Colors.grey,
                       ),
                     ),
                   ],
@@ -138,9 +150,7 @@ class _DashboardPageState extends State<DashboardPage> {
             _buildDeviceCard(
               deviceName: "Fan 1",
               isOn: _fan1State,
-              updatedBy: _fan1UpdatedBy,
-              toggleCallback: () =>
-                  _toggleDevice("Fan 1", _fan1State, "User A"),
+              toggleCallback: () => _toggleDevice("Fan 1", _fan1State),
             ),
             const SizedBox(height: 10),
 
@@ -148,9 +158,7 @@ class _DashboardPageState extends State<DashboardPage> {
             _buildDeviceCard(
               deviceName: "Fan 2",
               isOn: _fan2State,
-              updatedBy: _fan2UpdatedBy,
-              toggleCallback: () =>
-                  _toggleDevice("Fan 2", _fan2State, "User B"),
+              toggleCallback: () => _toggleDevice("Fan 2", _fan2State),
             ),
             const SizedBox(height: 10),
 
@@ -158,9 +166,7 @@ class _DashboardPageState extends State<DashboardPage> {
             _buildDeviceCard(
               deviceName: "Bulb 1",
               isOn: _bulb1State,
-              updatedBy: _bulb1UpdatedBy,
-              toggleCallback: () =>
-                  _toggleDevice("Bulb 1", _bulb1State, "User C"),
+              toggleCallback: () => _toggleDevice("Bulb 1", _bulb1State),
             ),
             const SizedBox(height: 10),
 
@@ -168,9 +174,7 @@ class _DashboardPageState extends State<DashboardPage> {
             _buildDeviceCard(
               deviceName: "Bulb 2",
               isOn: _bulb2State,
-              updatedBy: _bulb2UpdatedBy,
-              toggleCallback: () =>
-                  _toggleDevice("Bulb 2", _bulb2State, "User D"),
+              toggleCallback: () => _toggleDevice("Bulb 2", _bulb2State),
             ),
           ],
         ),
@@ -182,7 +186,6 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildDeviceCard({
     required String deviceName,
     required bool isOn,
-    required String updatedBy,
     required VoidCallback toggleCallback,
   }) {
     return Card(
@@ -192,25 +195,12 @@ class _DashboardPageState extends State<DashboardPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  deviceName,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Last updated by: $updatedBy',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
+            Text(
+              deviceName,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Switch(
               value: isOn,

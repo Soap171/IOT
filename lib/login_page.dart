@@ -39,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
       );
     } on FirebaseAuthException catch (e) {
       setState(() {
-        _errorMessage = _getErrorMessage(e.code);
+        _errorMessage = e.message; // Display the error message in the app
       });
     } catch (e) {
       setState(() {
@@ -49,22 +49,6 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         _isLoading = false;
       });
-    }
-  }
-
-  // Map Firebase error codes to user-friendly messages
-  String _getErrorMessage(String errorCode) {
-    switch (errorCode) {
-      case 'invalid-email':
-        return 'The email address is not valid.';
-      case 'user-disabled':
-        return 'This user has been disabled.';
-      case 'user-not-found':
-        return 'No user found for this email.';
-      case 'wrong-password':
-        return 'Incorrect password. Please try again.';
-      default:
-        return 'An error occurred. Please try again.';
     }
   }
 
@@ -134,6 +118,7 @@ class _LoginPageState extends State<LoginPage> {
                     child: Text(
                       _errorMessage!,
                       style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
                     ),
                   ),
 
