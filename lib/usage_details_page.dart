@@ -77,7 +77,7 @@ class UsageDetailsPage extends StatelessWidget {
                 BarChartData(
                   barGroups: data,
                   titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
+                    leftTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: true),
                     ),
                     bottomTitles: AxisTitles(

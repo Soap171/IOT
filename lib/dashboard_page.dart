@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'usage_details_page.dart';
+import 'dart:async';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -12,56 +13,108 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  // Firebase references
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
-  // User data
-  String? _userName = "Loading...";
-  String? _userEmail = "Loading...";
-  double? _temperature = null; // Holds the temperature value
+  String _userName = "Loading...";
+  String _userEmail = "Loading...";
+  double? _temperature;
   bool _isLoading = true;
 
-  // Device states
-  bool _fan1State = false;
-  bool _fan2State = false;
-  bool _bulb1State = false;
-  bool _bulb2State = false;
+  bool _fanState = false;
+  bool _light1State = false;
+  bool _light2State = false;
 
-  // Fetch user and temperature data
+  // Stream subscriptions
+  late StreamSubscription<DatabaseEvent> _tempSubscription;
+  late StreamSubscription<DatabaseEvent> _fanSubscription;
+  late StreamSubscription<DatabaseEvent> _light1Subscription;
+  late StreamSubscription<DatabaseEvent> _light2Subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+    _setupRealtimeListeners();
+  }
+
+  @override
+  void dispose() {
+    // Cancel stream subscriptions
+    _tempSubscription.cancel();
+    _fanSubscription.cancel();
+    _light1Subscription.cancel();
+    _light2Subscription.cancel();
+    super.dispose();
+  }
+
+  void _setupRealtimeListeners() {
+    // Listen to temperature changes
+    _tempSubscription = _dbRef.child('temperature').onValue.listen((event) {
+      if (event.snapshot.exists && event.snapshot.value != null) {
+        setState(() {
+          _temperature = double.tryParse(event.snapshot.value.toString());
+        });
+      }
+    }, onError: (error) {
+      print("Error fetching temperature: $error");
+    });
+
+    // Listen to fan state changes
+    _fanSubscription = _dbRef.child('devices/fan1').onValue.listen((event) {
+      if (event.snapshot.exists && event.snapshot.value != null) {
+        setState(() {
+          _fanState = event.snapshot.value == 1;
+        });
+      }
+    }, onError: (error) {
+      print("Error fetching fan state: $error");
+    });
+
+    // Listen to light1 state changes
+    _light1Subscription =
+        _dbRef.child('devices/light1').onValue.listen((event) {
+      if (event.snapshot.exists && event.snapshot.value != null) {
+        setState(() {
+          _light1State = event.snapshot.value == 1;
+        });
+      }
+    }, onError: (error) {
+      print("Error fetching light1 state: $error");
+    });
+
+    // Listen to light2 state changes
+    _light2Subscription =
+        _dbRef.child('devices/light2').onValue.listen((event) {
+      if (event.snapshot.exists && event.snapshot.value != null) {
+        setState(() {
+          _light2State = event.snapshot.value == 1;
+        });
+      }
+    }, onError: (error) {
+      print("Error fetching light2 state: $error");
+    });
+  }
+
   Future<void> _fetchUserData() async {
     try {
       User? currentUser = _auth.currentUser;
 
       if (currentUser != null) {
-        _userEmail = currentUser.email;
+        _userEmail = currentUser.email ?? "Unknown Email";
         String uid = currentUser.uid;
 
-        // Fetch user data
-        DataSnapshot snapshot = await _dbRef.child('users').get();
-        if (snapshot.exists) {
-          Map<dynamic, dynamic> users = snapshot.value as Map<dynamic, dynamic>;
-          for (var userKey in users.keys) {
-            Map<dynamic, dynamic> userData = users[userKey];
-            if (userData['userId'] == uid) {
-              setState(() {
-                _userName = userData['name'];
-              });
-              break;
-            }
-          }
-        }
-
-        // Fetch temperature value
-        DataSnapshot tempSnapshot = await _dbRef.child('temperature').get();
-        if (tempSnapshot.exists) {
+        DataSnapshot snapshot = await _dbRef.child('users/$uid').get();
+        if (snapshot.exists && snapshot.value != null) {
+          Map<dynamic, dynamic> userData =
+              snapshot.value as Map<dynamic, dynamic>;
           setState(() {
-            _temperature = double.parse(tempSnapshot.value.toString());
+            _userName = userData['name'] ?? "Unknown User";
           });
         }
       }
     } catch (e) {
-      print('Error fetching data: $e');
+      print('Error fetching user data: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -69,34 +122,29 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // Simulate toggling device states
-  void _toggleDevice(String deviceName, bool currentState) {
-    setState(() {
-      switch (deviceName) {
-        case "Fan 1":
-          _fan1State = !currentState;
-          break;
-        case "Fan 2":
-          _fan2State = !currentState;
-          break;
-        case "Bulb 1":
-          _bulb1State = !currentState;
-          break;
-        case "Bulb 2":
-          _bulb2State = !currentState;
-          break;
-      }
-    });
+  void _toggleDevice(String devicePath, bool currentState) async {
+    int newState = currentState ? 0 : 1;
+    try {
+      await _dbRef.child('devices/$devicePath').set(newState);
+      // No need to setState here as the stream listener will handle the update
+    } catch (e) {
+      print("Error updating device state: $e");
+      // Show error snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update $devicePath'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  // Log out function
   void _logout() {
     _auth.signOut().then((_) {
-      Navigator.pop(context); // Navigate back to the login page
+      Navigator.pop(context);
     });
   }
 
-  // Navigate to Usage Details page
   void _navigateToUsageDetails() {
     Navigator.push(
       context,
@@ -104,12 +152,6 @@ class _DashboardPageState extends State<DashboardPage> {
         builder: (context) => const UsageDetailsPage(),
       ),
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchUserData(); // Fetch user and temperature data
   }
 
   @override
@@ -136,7 +178,6 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Welcome Header
                   Text(
                     'Welcome, $_userName!',
                     style: GoogleFonts.poppins(
@@ -153,8 +194,6 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Temperature Display
                   Card(
                     elevation: 4,
                     child: Padding(
@@ -184,68 +223,16 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Navigate to Usage Details Button
-                  ElevatedButton.icon(
-                    onPressed: _navigateToUsageDetails,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 3, 48, 86),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                    ),
-                    icon: const Icon(Icons.bar_chart),
-                    label: Text(
-                      'View Usage Details',
-                      style: GoogleFonts.poppins(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Fan 1
-                  _buildDeviceCard(
-                    deviceName: "Fan 1",
-                    isOn: _fan1State,
-                    toggleCallback: () => _toggleDevice("Fan 1", _fan1State),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Fan 2
-                  _buildDeviceCard(
-                    deviceName: "Fan 2",
-                    isOn: _fan2State,
-                    toggleCallback: () => _toggleDevice("Fan 2", _fan2State),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Bulb 1
-                  _buildDeviceCard(
-                    deviceName: "Bulb 1",
-                    isOn: _bulb1State,
-                    toggleCallback: () => _toggleDevice("Bulb 1", _bulb1State),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Bulb 2
-                  _buildDeviceCard(
-                    deviceName: "Bulb 2",
-                    isOn: _bulb2State,
-                    toggleCallback: () => _toggleDevice("Bulb 2", _bulb2State),
-                  ),
+                  _buildDeviceCard("Fan", _fanState, "fan1"),
+                  _buildDeviceCard("Light 1", _light1State, "light1"),
+                  _buildDeviceCard("Light 2", _light2State, "light2"),
                 ],
               ),
             ),
     );
   }
 
-  // Helper method to build device cards
-  Widget _buildDeviceCard({
-    required String deviceName,
-    required bool isOn,
-    required VoidCallback toggleCallback,
-  }) {
+  Widget _buildDeviceCard(String deviceName, bool isOn, String devicePath) {
     return Card(
       elevation: 4,
       child: Padding(
@@ -262,7 +249,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             Switch(
               value: isOn,
-              onChanged: (value) => toggleCallback(),
+              onChanged: (value) => _toggleDevice(devicePath, isOn),
               activeColor: Colors.green,
             ),
           ],
