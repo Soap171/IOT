@@ -25,105 +25,19 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _light1State = false;
   bool _light2State = false;
 
+  double _fanUsage = 0.0;
+  double _light1Usage = 0.0;
+  double _light2Usage = 0.0;
+
   String _fanTurnedBy = "Unknown";
   String _light1TurnedBy = "Unknown";
   String _light2TurnedBy = "Unknown";
 
-  late StreamSubscription<DatabaseEvent> _tempSubscription;
-  late StreamSubscription<DatabaseEvent> _fanSubscription;
-  late StreamSubscription<DatabaseEvent> _light1Subscription;
-  late StreamSubscription<DatabaseEvent> _light2Subscription;
-  late StreamSubscription<DatabaseEvent> _fanTurnedBySubscription;
-  late StreamSubscription<DatabaseEvent> _light1TurnedBySubscription;
-  late StreamSubscription<DatabaseEvent> _light2TurnedBySubscription;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchUserData();
-    _setupRealtimeListeners();
-  }
-
-  @override
-  void dispose() {
-    _tempSubscription.cancel();
-    _fanSubscription.cancel();
-    _light1Subscription.cancel();
-    _light2Subscription.cancel();
-    _fanTurnedBySubscription.cancel();
-    _light1TurnedBySubscription.cancel();
-    _light2TurnedBySubscription.cancel();
-    super.dispose();
-  }
-
-  void _setupRealtimeListeners() {
-    _tempSubscription = _dbRef.child('temperature').onValue.listen((event) {
-      if (event.snapshot.exists) {
-        var data = event.snapshot.value as Map<dynamic, dynamic>?;
-        if (data != null && data.isNotEmpty) {
-          var latestKey = data.keys.last;
-          var latestTemperature = double.parse(data[latestKey].toString());
-          setState(() {
-            _temperature = latestTemperature;
-          });
-        }
-      }
-    });
-
-    _fanSubscription =
-        _dbRef.child('device/fan1/status').onValue.listen((event) {
-      if (event.snapshot.exists) {
-        setState(() {
-          _fanState = event.snapshot.value == 1;
-        });
-      }
-    });
-
-    _light1Subscription =
-        _dbRef.child('device/light1/status').onValue.listen((event) {
-      if (event.snapshot.exists) {
-        setState(() {
-          _light1State = event.snapshot.value == 1;
-        });
-      }
-    });
-
-    _light2Subscription =
-        _dbRef.child('device/light2/status').onValue.listen((event) {
-      if (event.snapshot.exists) {
-        setState(() {
-          _light2State = event.snapshot.value == 1;
-        });
-      }
-    });
-
-    _fanTurnedBySubscription =
-        _dbRef.child('device/fan1/turnedBy').onValue.listen((event) {
-      if (event.snapshot.exists) {
-        setState(() {
-          _fanTurnedBy = event.snapshot.value.toString();
-        });
-      }
-    });
-
-    _light1TurnedBySubscription =
-        _dbRef.child('device/light1/turnedBy').onValue.listen((event) {
-      if (event.snapshot.exists) {
-        setState(() {
-          _light1TurnedBy = event.snapshot.value.toString();
-        });
-      }
-    });
-
-    _light2TurnedBySubscription =
-        _dbRef.child('device/light2/turnedBy').onValue.listen((event) {
-      if (event.snapshot.exists) {
-        setState(() {
-          _light2TurnedBy = event.snapshot.value.toString();
-        });
-      }
-    });
-  }
+  Map<String, DateTime?> _deviceStartTimes = {
+    'fan1': null,
+    'light1': null,
+    'light2': null,
+  };
 
   Future<void> _fetchUserData() async {
     try {
@@ -156,17 +70,104 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+    _setupRealtimeListeners();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  void _setupRealtimeListeners() {
+    _listenToDeviceStatus('fan1');
+    _listenToDeviceStatus('light1');
+    _listenToDeviceStatus('light2');
+
+    _listenToUsage('fan1');
+    _listenToUsage('light1');
+    _listenToUsage('light2');
+
+    // Listen to turnedBy updates
+    _listenToTurnedBy('fan1');
+    _listenToTurnedBy('light1');
+    _listenToTurnedBy('light2');
+  }
+
+  void _listenToDeviceStatus(String device) {
+    _dbRef.child('device/$device/status').onValue.listen((event) {
+      if (event.snapshot.exists) {
+        bool newState = event.snapshot.value == 1;
+        setState(() {
+          if (newState) {
+            _deviceStartTimes[device] = DateTime.now();
+          } else {
+            _calculateUsage(device);
+          }
+          if (device == 'fan1') _fanState = newState;
+          if (device == 'light1') _light1State = newState;
+          if (device == 'light2') _light2State = newState;
+        });
+      }
+    });
+  }
+
+  void _listenToUsage(String device) {
+    _dbRef.child('device/$device/usage').onValue.listen((event) {
+      if (event.snapshot.exists) {
+        setState(() {
+          double usage =
+              double.tryParse(event.snapshot.value.toString()) ?? 0.0;
+          if (device == 'fan1') _fanUsage = usage;
+          if (device == 'light1') _light1Usage = usage;
+          if (device == 'light2') _light2Usage = usage;
+        });
+      }
+    });
+  }
+
+  void _calculateUsage(String device) {
+    DateTime? startTime = _deviceStartTimes[device];
+    if (startTime != null) {
+      double usage = DateTime.now().difference(startTime).inMinutes.toDouble();
+      _deviceStartTimes[device] = null;
+
+      _dbRef.child('device/$device/usage').get().then((snapshot) {
+        double previousUsage = snapshot.exists
+            ? double.tryParse(snapshot.value.toString()) ?? 0.0
+            : 0.0;
+        double newUsage = previousUsage + usage;
+
+        _dbRef.child('device/$device').update({'usage': newUsage}).then((_) {
+          setState(() {
+            if (device == 'fan1') _fanUsage = newUsage;
+            if (device == 'light1') _light1Usage = newUsage;
+            if (device == 'light2') _light2Usage = newUsage;
+          });
+        });
+      });
+    }
+  }
+
   void _toggleDevice(String devicePath, bool currentState) async {
-    int newState = currentState ? 0 : 1;
+    int newState = currentState ? 0 : 1; // 0 for off, 1 for on
+    String actionUser = _userName; // Current user's name
 
     try {
       await _dbRef.child('device/$devicePath').update({
         'status': newState,
-        'turnedBy': newState == 1 ? _userName : "Unknown",
+        'turnedBy': actionUser, // Always update with the current user's name
       });
 
-      print(
-          "Device $devicePath updated: status = $newState, turnedBy = $_userName");
+      // Update the corresponding turnedBy state locally
+      setState(() {
+        if (devicePath == 'fan1') _fanTurnedBy = actionUser;
+        if (devicePath == 'light1') _light1TurnedBy = actionUser;
+        if (devicePath == 'light2') _light2TurnedBy = actionUser;
+      });
     } catch (e) {
       print("Error updating device state: $e");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -178,12 +179,23 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  void _listenToTurnedBy(String device) {
+    _dbRef.child('device/$device/turnedBy').onValue.listen((event) {
+      if (event.snapshot.exists) {
+        setState(() {
+          String turnedBy = event.snapshot.value.toString();
+          if (device == 'fan1') _fanTurnedBy = turnedBy;
+          if (device == 'light1') _light1TurnedBy = turnedBy;
+          if (device == 'light2') _light2TurnedBy = turnedBy;
+        });
+      }
+    });
+  }
+
   void _logout() {
     _auth.signOut().then((_) {
       Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-      );
+          context, MaterialPageRoute(builder: (context) => const LoginPage()));
     });
   }
 
@@ -195,10 +207,9 @@ class _DashboardPageState extends State<DashboardPage> {
         backgroundColor: const Color.fromARGB(255, 230, 238, 245),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Logout',
-          ),
+              icon: const Icon(Icons.logout),
+              onPressed: _logout,
+              tooltip: 'Logout'),
         ],
       ),
       body: _isLoading
@@ -208,11 +219,9 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Welcome, $_userName!',
-                    style: GoogleFonts.poppins(
-                        fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
+                  Text('Welcome, $_userName!',
+                      style: GoogleFonts.poppins(
+                          fontSize: 20, fontWeight: FontWeight.bold)),
                   Text('Email: $_userEmail',
                       style: GoogleFonts.poppins(
                           fontSize: 16, color: Colors.grey[700])),
@@ -240,27 +249,37 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  _buildDeviceCard("Fan", _fanState, "fan1", _fanTurnedBy),
                   _buildDeviceCard(
-                      "Light 1", _light1State, "light1", _light1TurnedBy),
-                  _buildDeviceCard(
-                      "Light 2", _light2State, "light2", _light2TurnedBy),
+                      "Fan", _fanState, "fan1", _fanTurnedBy, _fanUsage),
+                  _buildDeviceCard("Light 1", _light1State, "light1",
+                      _light1TurnedBy, _light1Usage),
+                  _buildDeviceCard("Light 2", _light2State, "light2",
+                      _light2TurnedBy, _light2Usage),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildDeviceCard(
-      String deviceName, bool isOn, String devicePath, String turnedBy) {
+  Widget _buildDeviceCard(String deviceName, bool isOn, String devicePath,
+      String turnedBy, double usage) {
     return Card(
       elevation: 4,
       child: ListTile(
         title: Text(deviceName,
             style:
                 GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold)),
-        subtitle: Text("Last turned on by: $turnedBy",
-            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700])),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Last changed by: $turnedBy",
+                style:
+                    GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700])),
+            Text("Usage: ${usage.toStringAsFixed(1)} min",
+                style: GoogleFonts.poppins(
+                    fontSize: 14, fontWeight: FontWeight.bold)),
+          ],
+        ),
         trailing: Switch(
             value: isOn,
             onChanged: (value) => _toggleDevice(devicePath, isOn),
