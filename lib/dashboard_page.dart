@@ -39,6 +39,25 @@ class _DashboardPageState extends State<DashboardPage> {
     'light2': null,
   };
 
+  void _listenToTemperature() {
+    _dbRef.child('temperature').onValue.listen((event) {
+      if (event.snapshot.exists) {
+        Map<dynamic, dynamic>? temperatureData =
+            event.snapshot.value as Map<dynamic, dynamic>?;
+        if (temperatureData != null) {
+          // Get the latest temperature value
+          double? latestTemperature = temperatureData.values
+              .map((value) => double.tryParse(value.toString()) ?? 0.0)
+              .reduce((a, b) => a > b ? a : b); // Find the max value
+
+          setState(() {
+            _temperature = latestTemperature;
+          });
+        }
+      }
+    });
+  }
+
   Future<void> _fetchUserData() async {
     try {
       User? currentUser = _auth.currentUser;
@@ -95,6 +114,8 @@ class _DashboardPageState extends State<DashboardPage> {
     _listenToTurnedBy('fan1');
     _listenToTurnedBy('light1');
     _listenToTurnedBy('light2');
+
+    _listenToTemperature(); // Add listener for temperature
   }
 
   void _listenToDeviceStatus(String device) {
@@ -233,17 +254,21 @@ class _DashboardPageState extends State<DashboardPage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("Current Temperature:",
-                              style: GoogleFonts.poppins(
-                                  fontSize: 18, fontWeight: FontWeight.bold)),
                           Text(
-                              _temperature != null
-                                  ? "${_temperature!.toStringAsFixed(1)} °C"
-                                  : "N/A",
-                              style: GoogleFonts.poppins(
-                                  fontSize: 18,
-                                  color: Colors.blue,
-                                  fontWeight: FontWeight.bold)),
+                            "Current Temperature:",
+                            style: GoogleFonts.poppins(
+                                fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            _temperature != null
+                                ? "${_temperature!.toStringAsFixed(1)} °C"
+                                : "N/A",
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                     ),
